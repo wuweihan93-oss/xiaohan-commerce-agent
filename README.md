@@ -142,10 +142,30 @@ flowchart LR
 | 多轮持久化记忆 | `AsyncSqliteSaver`，thread_id 由访客、客户、会话组成 |
 | 业务数据与历史展示 | `store.py`：参数化 SQL、归属校验、事务、幂等确认 |
 | 工具异常恢复 | `middleware.py`：中断后补齐匹配的 ToolMessage，减少下一轮 tool_calls 400 |
-| SSE | `main.py` 输出 token/state/done；`frontend/src/stream.js` 解析分块 |
+| SSE | `api/chat.py` 管连接与心跳，`services/chat_stream.py` 保存并转发 Agent 事件；`frontend/src/stream.js` 解析分块 |
 | Vue | `App.vue`：对话、工具轨迹、知识出处、确认面板 |
 
-建议按 **store.py → mcp_server.py → agent.py → main.py → App.vue** 阅读。更细的复盘步骤见 [学习路线](docs/学习路线.md)，本次部署状态见 [验收与部署记录](docs/验收与部署记录.md)。
+后端按职责拆分：
+
+```text
+backend/app/
+├── main.py                 # 应用生命周期、全局异常与路由装配
+├── browser_middleware.py   # 匿名访客签名 Cookie
+├── api/
+│   ├── routes.py           # 健康、身份、商品、订单、售后、历史与内部检索
+│   ├── chat.py             # 流式聊天 HTTP 连接与断开清理
+│   ├── schemas.py          # 请求体和输入长度约束
+│   └── dependencies.py     # 当前访客、同源校验
+├── services/chat_stream.py # Agent 事件转发、回答持久化和取消恢复
+├── agent.py                # LangChain Agent、Prompt、MCP 会话与图状态
+├── mcp_server.py           # Agent 可用的 MCP 工具
+├── middleware.py           # LangChain 工具调用恢复
+├── knowledge.py            # RAG、Embedding 与 Milvus Lite
+├── store.py                # SQLite 商品、订单、会话和售后规则
+└── demo_model.py           # 无 Key 的规则演示模型
+```
+
+建议按 **`main.py → api/chat.py → services/chat_stream.py → agent.py → mcp_server.py → store.py/knowledge.py`** 阅读请求链路。更细的复盘步骤见 [学习路线](docs/学习路线.md)，本次部署状态见 [验收与部署记录](docs/验收与部署记录.md)。
 
 ## 5. 修改商品和知识
 

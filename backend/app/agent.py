@@ -132,6 +132,7 @@ async def stream(
         draft = ""
         message_id = None
         previous = None
+        # messages 流负责逐字输出；values 流负责整理本轮完整的工具轨迹与引用。
         async for mode, data in graph.astream(
             {"messages": [HumanMessage(content=question)]},
             config={
@@ -152,6 +153,7 @@ async def stream(
                 if chunk.id and chunk.id != message_id:
                     message_id = chunk.id
                     if draft:
+                        # 部分模型会先输出思考文字再发起工具调用，reset 让前端丢弃草稿。
                         yield {"event": "reset", "data": {}}
                         draft = ""
                 text = visible_text(chunk)
@@ -170,6 +172,7 @@ async def stream(
                     and messages[-1].tool_calls
                     and draft
                 ):
+                    # 最终答案只保留工具完成后的模型输出，不显示工具调用前的暂存文本。
                     yield {"event": "reset", "data": {}}
                     draft = ""
         final = next(
