@@ -46,7 +46,7 @@ def main():
     with target.open("x") as stream:
         stream.write("\n".join(lines) + "\n")
     target.chmod(0o600)
-    print("已生成独立 .env；默认规则演示模式，无需调用付费模型。")
+    print("已生成独立 .env；请填写聊天模型 API Key 和兼容地址后启动。")
 
 
 if __name__ == "__main__":

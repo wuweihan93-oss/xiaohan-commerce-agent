@@ -28,7 +28,10 @@ class FullStackTests(unittest.TestCase):
             **os.environ,
             "COMMERCE_DATA_DIR": cls.temporary.name,
             "COMMERCE_INTERNAL_URL": cls.url,
-            "DEMO_MODE": "true",
+            "TEST_PORT": str(cls.port),
+            "CHAT_MODEL": "integration-test",
+            "CHAT_API_KEY": "test-key",
+            "CHAT_BASE_URL": "http://127.0.0.1/unused",
             "EMBEDDING_MODE": "local",
             "SESSION_SECRET": "isolated-test-secret-" + "a" * 40,
             "LANGSMITH_TRACING": "false",
@@ -42,13 +45,7 @@ class FullStackTests(unittest.TestCase):
             [
                 sys.executable,
                 "-m",
-                "uvicorn",
-                "app.main:app",
-                "--host",
-                "127.0.0.1",
-                "--port",
-                str(cls.port),
-                "--no-proxy-headers",
+                "tests.run_server",
             ],
             cwd=BACKEND,
             env=cls.env,
@@ -116,6 +113,21 @@ class FullStackTests(unittest.TestCase):
             any("退换货规则" in item["source"] for item in knowledge["sources"])
         )
         self.assertIn("search_knowledge", [item["tool"] for item in knowledge["trace"]])
+
+    def test_product_recommendations_stream_and_restore_from_history(self):
+        conversation_id = str(uuid.uuid4())
+        result = self.chat("推荐一款适合办公桌阅读的灯，预算200元以内", conversation_id)
+        self.assertIn("recommend_products", [item["tool"] for item in result["trace"]])
+        self.assertEqual(result["recommendations"][0]["id"], "P1003")
+        self.assertTrue(
+            all(item["price"] <= 20000 for item in result["recommendations"])
+        )
+        self.assertIn("折叠阅读灯", result["answer"])
+        restored = self.client.get(f"/api/conversations/{conversation_id}").json()[
+            "conversation"
+        ]
+        assistant = restored["messages"][-1]
+        self.assertEqual(assistant["recommendations"][0]["id"], "P1003")
 
     def test_02_after_sales_has_explicit_confirmation_and_no_real_refund(self):
         self.chat("SG20260001 可以退货吗？先只解释规则，不申请")
@@ -212,7 +224,7 @@ class FullStackTests(unittest.TestCase):
             "conversation"
         ]
         self.assertEqual(len(restored["messages"]), 2)
-        second = self.chat("保温杯多少钱？", conversation_id)
+        second = self.chat("保温杯的退货规则是什么？", conversation_id)
         self.assertTrue(second["sources"], "重启后向量集合也必须能检索，不能只恢复消息")
         saved = self.client.get(f"/api/conversations/{conversation_id}").json()[
             "conversation"

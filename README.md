@@ -5,6 +5,7 @@
 客服叫「小拾」，支持：
 
 - 查商品价格、库存和规格，不让模型凭记忆编造价格。
+- 根据用途、品类和预算推荐有库存商品，以卡片展示价格、规格和库存。
 - 查当前演示买家的订单、状态和物流。
 - 从店铺 Markdown 资料中检索配送、保修、退换货政策，并展示出处。
 - 核验订单 → 生成售后草稿 → 用户在页面确认 → 登记待人工审核工单。
@@ -58,10 +59,11 @@ Docker 只公开前端 8891，后端 8020 留在独立容器网络内。项目�
 默认买家 A「林同学」：
 
 1. `降噪耳机多少钱？还有库存吗？` —— 商品工具返回 ¥399、库存 28 件。
-2. `查一下 SG20260002 的物流` —— 查询保温杯的运输进度。
-3. `七天无理由退货的运费谁承担？` —— 检索知识库，展开回答下的参考片段。
-4. `为 SG20260001 申请退货，原因是不合适` —— 先核验规则，再生成草稿；到“订单与售后”点击「确认提交」。
-5. `为 SG20260002 申请退货，原因是不需要了` —— 运输中订单不能自动受理，提示联系人工。
+2. `推荐一款适合办公桌阅读的灯，预算200元以内` —— 按用途和预算调用推荐工具，展示商品卡片；选择「继续了解」可追问规格。
+3. `查一下 SG20260002 的物流` —— 查询保温杯的运输进度。
+4. `七天无理由退货的运费谁承担？` —— 检索知识库，展开回答下的参考片段。
+5. `为 SG20260001 申请退货，原因是不合适` —— 先核验规则，再生成草稿；到“订单与售后”点击「确认提交」。
+6. `为 SG20260002 申请退货，原因是不需要了` —— 运输中订单不能自动受理，提示联系人工。
 
 左下角切换为买家 B「陈同学」：
 
@@ -71,14 +73,11 @@ Docker 只公开前端 8891，后端 8020 留在独立容器网络内。项目�
 
 演示订单的签收日期以**首次初始化时间**为基准，重启不会重置。7 天后，最初的已签收订单会正常超出自动申请期限。需要重新演示时，可停止服务并备份后移走本项目数据目录，重新启动生成样例；不要删除原复习项目的数据。
 
-## 3. 大模型与无 Key 演示
+## 3. 聊天模型与向量模型配置
 
-`.env` 有两个彼此独立的开关：
+聊天模型始终使用支持 Tool Calling 的 OpenAI 兼容接口：
 
 ```dotenv
-# true：受限的规则模型；false：真实大模型自主决定调用工具
-DEMO_MODE=true
-
 CHAT_MODEL=deepseek-chat
 CHAT_API_KEY=
 CHAT_BASE_URL=https://api.deepseek.com
@@ -90,9 +89,7 @@ EMBEDDING_BASE_URL=
 EMBEDDING_MODEL=
 ```
 
-**使用真实客服 Agent**：填写兼容 OpenAI 且支持 Tool Calling 的模型配置，将 `DEMO_MODE=false`，重启后端。当前本机和本次部署的 `.env` 已启用复制的 DeepSeek 配置；新环境运行配置生成脚本时默认仍为规则演示。密钥不会出现在 README、代码包或浏览器中。
-
-**无需 Key 演示**：`DEMO_MODE=true` 使用自定义 `BaseChatModel` 按关键词选择工具，仍真实经过 `create_agent → MCP → SQLite/Milvus → SSE`，没有伪造工具结果。但它不具备大模型的语义理解和多轮推理能力，建议先用快捷问题学习链路；页面会明确标记「规则演示模式」。
+启动前必须填写 `CHAT_API_KEY` 和 `CHAT_BASE_URL`；模型由 `init_chat_model` 初始化，并自主选择 MCP 工具。项目中的商品、订单和访客是虚构业务数据，不会产生真实交易。密钥不会出现在 README、代码包或浏览器中。
 
 向量模型不依赖聊天模型开关：
 
@@ -120,7 +117,7 @@ uv sync --frozen --python 3.12
 flowchart LR
     U[Vue 客服页面] -->|POST + SSE| A[FastAPI]
     A --> B[LangChain create_agent]
-    B --> L[大模型 / 规则演示模型]
+    B --> L[OpenAI 兼容聊天模型]
     B -->|stdio| M[MCP 工具服务]
     M --> P[商品与订单 SQLite]
     M -->|带内部令牌| R[RAG 检索]
@@ -135,9 +132,10 @@ flowchart LR
 
 | 学过的技术 | 本项目落点 |
 | --- | --- |
-| Agent 与 Tool Calling | `backend/app/agent.py`：`create_agent`、模型自主调用工具 |
-| Prompt | 同文件 `SYSTEM_PROMPT`：业务边界、工具选择、事实来源、售后确认 |
-| MCP | `mcp_server.py` 声明 4 个工具；`agent.py` 用 `MultiServerMCPClient` 加载 |
+| 模型初始化 | `backend/app/models.py`：教程中的 `init_chat_model`，兼容 DeepSeek/OpenAI 接口 |
+| Agent 与 Tool Calling | `backend/app/agent.py`：加载 MCP 工具、`create_agent`、`astream` |
+| Prompt | `backend/app/prompts.py`：业务边界、工具选择、事实来源、售后确认 |
+| MCP | `mcp_server.py` 声明 5 个工具；`agent.py` 用 `MultiServerMCPClient` 加载 |
 | RAG / 切分 / Embedding / Milvus | `knowledge.py`：Markdown → 切片 → 向量 → 检索与出处 |
 | 多轮持久化记忆 | `AsyncSqliteSaver`，thread_id 由访客、客户、会话组成 |
 | 业务数据与历史展示 | `store.py`：参数化 SQL、归属校验、事务、幂等确认 |
@@ -157,22 +155,25 @@ backend/app/
 │   ├── schemas.py          # 请求体和输入长度约束
 │   └── dependencies.py     # 当前访客、同源校验
 ├── services/chat_stream.py # Agent 事件转发、回答持久化和取消恢复
-├── agent.py                # LangChain Agent、Prompt、MCP 会话与图状态
+├── models.py               # init_chat_model：创建 OpenAI 兼容聊天模型
+├── prompts.py              # Agent 系统提示词
+├── agent.py                # MultiServerMCPClient → create_agent → astream
 ├── mcp_server.py           # Agent 可用的 MCP 工具
 ├── middleware.py           # LangChain 工具调用恢复
 ├── knowledge.py            # RAG、Embedding 与 Milvus Lite
-├── store.py                # SQLite 商品、订单、会话和售后规则
-└── demo_model.py           # 无 Key 的规则演示模型
+├── store.py                # SQLite 商品筛选、推荐、订单、会话和售后规则
+└── tool_results.py         # MCP 工具结果解析
 ```
 
-建议按 **`main.py → api/chat.py → services/chat_stream.py → agent.py → mcp_server.py → store.py/knowledge.py`** 阅读请求链路。更细的复盘步骤见 [学习路线](docs/学习路线.md)，本次部署状态见 [验收与部署记录](docs/验收与部署记录.md)。
+建议按 **`models.py → prompts.py → agent.py → mcp_server.py → store.py/knowledge.py`** 学 LangChain 主链路，再看 **`main.py → api/chat.py → services/chat_stream.py`** 了解如何接到 Web 页面。更细的复盘步骤见 [学习路线](docs/学习路线.md)，本次部署状态见 [验收与部署记录](docs/验收与部署记录.md)。
 
 ## 5. 修改商品和知识
 
 - 修改 `knowledge/*.md`：用于 RAG 的政策和商品知识。程序检索时检查内容指纹，变更会自动切分入库；部署后重启后端可立即刷新页面的知识库统计。
 - 商品价格、库存、订单属于结构化业务事实，由 `store.py` 查询 SQLite，**不靠政策文档充当实时库存库**。
 - `store.initialize()` 只在首次初始化时插入样例，不覆盖已存在商品与订单。改种子后需迁移现有数据或在备份后使用全新数据目录。
-- 添加工具：在 `mcp_server.py` 写一个带中文说明的 `@mcp.tool` 函数，再更新 `SYSTEM_PROMPT`；真实模型可直接选择它。规则模式还需在 `demo_model.py` 添加选择规则。
+- 商品推荐条件位于 `store.recommend_products()`，真实业务可替换演示别名与规则；卡片数据随 SSE 返回并保存在会话历史。
+- 添加工具：在 `mcp_server.py` 写一个带中文说明的 `@mcp.tool` 函数，再更新 `prompts.py`；Agent 会通过 `load_mcp_tools()` 获取它。
 - 若替换成真实商城，先接登录和后端订单归属验证，再对接订单 API；不能把 `customer_id` 交给模型决定。
 
 ## 6. Ubuntu + Docker 部署
@@ -198,7 +199,7 @@ tar -xzf /tmp/xiaohan-commerce-agent.tar.gz
 cd xiaohan-commerce-agent
 python3 scripts/setup_env.py
 nano .env
-# 填入模型配置；想先验证页面可保留 DEMO_MODE=true
+# 填入 CHAT_API_KEY 和 CHAT_BASE_URL
 chmod 600 .env
 ss -ltn 'sport = :8891'
 docker compose config --quiet
@@ -255,6 +256,6 @@ npm test
 npm run build
 ```
 
-后端集成测试启动临时 FastAPI，实际执行 LangChain → stdio MCP → Milvus/SQLite → SSE；测试身份隔离、售后显式确认、幂等、重启持久化。测试使用临时目录和规则模型，不调用付费服务、不修改本地/服务器业务数据。
+后端集成测试启动临时 FastAPI，实际执行 LangChain → stdio MCP → Milvus/SQLite → SSE；测试身份隔离、售后显式确认、幂等和重启持久化。测试模型仅位于 `backend/tests/`，不会进入应用运行模式；测试不调用付费服务，也不修改本地/服务器业务数据。
 
 本项目面向学习和小规模演示。浏览器通过签名随机 Cookie 隔离聊天；演示买家可随意切换，因此不能拿来保护真实客户订单。公开给大量用户之前，需要补真实认证、限流、模型费用额度和运营审计。它暂未接入支付、人工客服平台或真实物流服务。

@@ -463,6 +463,65 @@ svg {
   border-collapse: collapse;
   font-size: 13px;
 }
+.recommendation-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 245px), 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+.recommendation-item {
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid #ececec;
+  border-radius: 8px;
+  background: #fff;
+}
+.recommendation-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.recommendation-heading small {
+  color: #999;
+  font-size: 11px;
+}
+.recommendation-heading h3 {
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 600;
+}
+.recommendation-heading > strong {
+  flex-shrink: 0;
+  color: #e9500c;
+  font-size: 14px;
+}
+.recommendation-item > p {
+  margin: 10px 0;
+  color: #666;
+  font-size: 12px;
+  line-height: 1.65;
+}
+.recommendation-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  color: #888;
+  font-size: 11px;
+}
+.recommendation-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 12px;
+  padding: 0;
+  color: #d94b09;
+  font-size: 12px;
+}
+.recommendation-action:hover {
+  color: #a93600;
+}
 .markdown td,
 .markdown th {
   border: 1px solid #eee;

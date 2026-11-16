@@ -29,6 +29,7 @@ async def produce_chat(
     answer = ""
     sources: list[dict] = []
     trace: list[dict] = []
+    recommendations: list[dict] = []
     answer_saved = False
     save_task = None
 
@@ -50,9 +51,11 @@ async def produce_chat(
                 answer = ""
             elif event_name == "state":
                 sources, trace = data["sources"], data["trace"]
+                recommendations = data.get("recommendations", [])
             elif event_name == "result":
                 answer = data["answer"]
                 sources, trace = data["sources"], data["trace"]
+                recommendations = data.get("recommendations", [])
 
                 # shield 可避免客户端断开时取消已提交的 SQLite 最终回答写入。
                 save_task = asyncio.create_task(
@@ -62,6 +65,7 @@ async def produce_chat(
                         answer,
                         sources,
                         trace,
+                        recommendations,
                     )
                 )
                 await asyncio.shield(save_task)
@@ -73,6 +77,7 @@ async def produce_chat(
                             "answer": answer,
                             "sources": sources,
                             "trace": trace,
+                            "recommendations": recommendations,
                             "conversation_id": conversation_id,
                         },
                     )
@@ -103,7 +108,12 @@ async def produce_chat(
             answer = (answer + "\n\n" if answer else "") + detail
             try:
                 await asyncio.to_thread(
-                    store.finish_turn, conversation_id, answer, sources, trace
+                    store.finish_turn,
+                    conversation_id,
+                    answer,
+                    sources,
+                    trace,
+                    recommendations,
                 )
             except Exception:
                 logger.exception("保存中断回答失败")
@@ -115,6 +125,7 @@ async def produce_chat(
                         "answer": answer,
                         "sources": sources,
                         "trace": trace,
+                        "recommendations": recommendations,
                     },
                 )
             )

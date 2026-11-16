@@ -24,6 +24,28 @@ async def search_products(query: str = "") -> str:
 
 
 @mcp.tool
+async def recommend_products(
+    query: str = "",
+    max_price_yuan: int | None = None,
+    category: str = "",
+    limit: int = 3,
+) -> str:
+    """按用途、预算和品类推荐有库存商品，返回商品卡片所需的实时字段。"""
+    return output(
+        {
+            "recommendations": store.recommend_products(
+                query=query,
+                max_price_yuan=max_price_yuan,
+                category=category,
+                limit=limit,
+            ),
+            "max_price_yuan": max_price_yuan,
+            "category": category,
+        }
+    )
+
+
+@mcp.tool
 async def search_knowledge(query: str) -> str:
     """检索退换货、配送、保修和商品选购知识，回答政策时引用返回的文件名。"""
     # 单独进程访问同一个 Milvus Lite 文件可能造成锁冲突，检索通过本进程主 API 转发。

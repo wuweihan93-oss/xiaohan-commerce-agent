@@ -14,13 +14,11 @@ router = APIRouter()
 
 @router.get("/api/health")
 async def health(request: Request):
-    """提供前端所需的模型模式和知识库状态，不返回凭据。"""
+    """提供前端所需的模型名称和知识库状态，不返回凭据。"""
     return {
         "ok": True,
-        "demo_mode": config.DEMO_MODE,
-        "model": "规则演示" if config.DEMO_MODE else config.CHAT_MODEL,
-        "model_configured": config.DEMO_MODE
-        or bool(config.CHAT_API_KEY and config.CHAT_BASE_URL),
+        "model": config.CHAT_MODEL,
+        "model_configured": bool(config.CHAT_API_KEY and config.CHAT_BASE_URL),
         "knowledge": request.app.state.knowledge,
     }
 

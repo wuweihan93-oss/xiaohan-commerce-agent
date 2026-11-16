@@ -14,7 +14,6 @@ KNOWLEDGE_DIR = Path(
 ).resolve()
 DATABASE = DATA_DIR / "commerce.sqlite3"
 CHECKPOINT_DB = DATA_DIR / "checkpoints.sqlite3"
-DEMO_MODE = os.getenv("DEMO_MODE", "true").lower() == "true"
 CHAT_MODEL = os.getenv("CHAT_MODEL", "deepseek-chat")
 CHAT_API_KEY = os.getenv("CHAT_API_KEY", "")
 CHAT_BASE_URL = os.getenv("CHAT_BASE_URL", "")

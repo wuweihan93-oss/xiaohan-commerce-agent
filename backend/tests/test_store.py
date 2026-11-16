@@ -29,6 +29,38 @@ class StoreTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             store.prepare_action("visitor-b", "demo-b", "chat", "SG20260001", "不合适")
 
+    def test_product_recommendations_apply_budget_category_and_use_case(self):
+        results = store.recommend_products(
+            "办公桌阅读灯", max_price_yuan=200, category="桌面", limit=3
+        )
+        self.assertEqual(results[0]["id"], "P1003")
+        self.assertTrue(all(item["price"] <= 20000 for item in results))
+        self.assertEqual(
+            store.recommend_products("耳机", max_price_yuan=100), []
+        )
+        with store.connect() as db:
+            db.execute("UPDATE products SET stock=0 WHERE id='P1003'")
+        self.assertNotIn(
+            "P1003", [item["id"] for item in store.recommend_products("阅读灯")]
+        )
+
+    def test_product_catalog_has_more_categories_and_recommendation_aliases(self):
+        self.assertEqual(len(store.products()), 15)
+        commute_audio = store.recommend_products("通勤运动耳机", max_price_yuan=300)
+        self.assertIn("P1009", [item["id"] for item in commute_audio])
+        desk_setup = store.recommend_products("笔记本电脑办公桌面")
+        self.assertTrue({"P1004", "P1005", "P1006"}.issubset(
+            {item["id"] for item in desk_setup}
+        ))
+
+    def test_existing_database_adds_recommendation_history_column(self):
+        with store.connect() as db:
+            db.execute("ALTER TABLE messages DROP COLUMN recommendations")
+        store.initialize()
+        with store.connect() as db:
+            columns = {row["name"] for row in db.execute("PRAGMA table_info(messages)")}
+        self.assertIn("recommendations", columns)
+
     def test_conversation_cannot_be_claimed_by_another_browser_or_customer(self):
         store.begin_turn("visitor-a", "demo-a", "chat", "你好")
         for visitor, customer in [("visitor-b", "demo-a"), ("visitor-a", "demo-b")]:
@@ -85,6 +117,8 @@ class StoreTests(unittest.TestCase):
         )
         self.assertNotEqual(draft["id"], next_draft["id"])
         with store.connect() as db:
-            db.execute("UPDATE products SET stock=0 WHERE id='P1001'")
+            db.execute("UPDATE products SET stock=0, price=12345 WHERE id='P1001'")
         store.initialize()
-        self.assertEqual(store.products("P1001")[0]["stock"], 0)
+        product = store.products("P1001")[0]
+        self.assertEqual(product["stock"], 0)
+        self.assertEqual(product["price"], 12345)

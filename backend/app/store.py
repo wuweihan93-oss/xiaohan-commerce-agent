@@ -36,12 +36,19 @@ def initialize():
             CREATE TABLE IF NOT EXISTS orders (id TEXT PRIMARY KEY, customer_id TEXT, product_id TEXT REFERENCES products(id), status TEXT, amount INTEGER, created_at TEXT, delivered_at TEXT, logistics TEXT);
             CREATE TABLE IF NOT EXISTS visitors (id TEXT PRIMARY KEY, customer_id TEXT NOT NULL DEFAULT 'demo-a');
             CREATE TABLE IF NOT EXISTS conversations (id TEXT PRIMARY KEY, visitor_id TEXT, customer_id TEXT, title TEXT, updated_at TEXT);
-            CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, conversation_id TEXT REFERENCES conversations(id), role TEXT, content TEXT, sources TEXT DEFAULT '[]', trace TEXT DEFAULT '[]', created_at TEXT);
+            CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, conversation_id TEXT REFERENCES conversations(id), role TEXT, content TEXT, sources TEXT DEFAULT '[]', trace TEXT DEFAULT '[]', created_at TEXT, recommendations TEXT NOT NULL DEFAULT '[]');
             CREATE TABLE IF NOT EXISTS actions (id TEXT PRIMARY KEY, visitor_id TEXT, customer_id TEXT, conversation_id TEXT, order_id TEXT, reason TEXT, status TEXT, created_at TEXT, ticket_id TEXT);
             CREATE UNIQUE INDEX IF NOT EXISTS action_order_active ON actions(visitor_id, customer_id, order_id) WHERE status IN ('pending', 'submitted');
             CREATE INDEX IF NOT EXISTS conversation_owner ON conversations(visitor_id, customer_id, updated_at);
             CREATE INDEX IF NOT EXISTS message_conversation ON messages(conversation_id, created_at);
         """)
+        message_columns = {
+            row["name"] for row in db.execute("PRAGMA table_info(messages)")
+        }
+        if "recommendations" not in message_columns:
+            db.execute(
+                "ALTER TABLE messages ADD COLUMN recommendations TEXT NOT NULL DEFAULT '[]'"
+            )
         products = [
             (
                 "P1001",
@@ -69,6 +76,114 @@ def initialize():
                 "桌面好物",
                 "三档色温 / 无级调光 / USB-C 接电",
                 {"供电": "USB-C，无内置电池", "颜色": ["雾白"], "保修": "12 个月"},
+            ),
+            (
+                "P1004",
+                "无线键盘",
+                18900,
+                32,
+                "桌面好物",
+                "蓝牙双模 / 静音按键 / 适合办公与居家学习",
+                {"连接": "蓝牙 / 2.4G", "布局": "84 键", "颜色": ["月光白", "石墨灰"]},
+            ),
+            (
+                "P1005",
+                "人体工学无线鼠标",
+                12900,
+                41,
+                "桌面好物",
+                "静音点击 / 可调 DPI / 适合长时间办公",
+                {"连接": "蓝牙 / 2.4G", "DPI": "800-2400", "颜色": ["白色", "黑色"]},
+            ),
+            (
+                "P1006",
+                "铝合金笔记本支架",
+                9900,
+                25,
+                "桌面好物",
+                "六档高度调节 / 铝合金机身 / 改善桌面坐姿",
+                {"材质": "铝合金", "适用": "11-16 英寸笔记本", "折叠": "可折叠"},
+            ),
+            (
+                "P1007",
+                "桌面收纳托盘",
+                4900,
+                58,
+                "桌面好物",
+                "分区收纳 / 防滑底垫 / 整理文具与桌面小物",
+                {"材质": "ABS", "尺寸": "24 × 16 cm", "颜色": ["雾灰", "奶白"]},
+            ),
+            (
+                "P1008",
+                "蓝牙桌面音箱",
+                23900,
+                19,
+                "数码音频",
+                "立体声双单元 / 蓝牙连接 / 适合桌面听歌与视频",
+                {"连接": "蓝牙 5.2 / AUX", "供电": "USB-C", "颜色": ["云白", "深灰"]},
+            ),
+            (
+                "P1009",
+                "开放式运动耳机",
+                26900,
+                22,
+                "数码音频",
+                "开放式佩戴 / 轻量机身 / 适合散步与轻运动",
+                {"连接": "蓝牙 5.3", "续航": "约 8 小时", "防护": "IPX4"},
+            ),
+            (
+                "P1010",
+                "便携充电宝",
+                14900,
+                36,
+                "数码配件",
+                "10000mAh / 双向快充 / 适合通勤出行备用",
+                {"容量": "10000mAh", "接口": "USB-C / USB-A", "颜色": ["白色", "浅蓝"]},
+            ),
+            (
+                "P1011",
+                "多口 USB-C 充电器",
+                11900,
+                47,
+                "数码配件",
+                "双 USB-C 加 USB-A / 折叠插脚 / 适合桌面和旅行",
+                {"接口": "USB-C × 2 / USB-A × 1", "功率": "65W", "插脚": "可折叠"},
+            ),
+            (
+                "P1012",
+                "硅胶随行水杯",
+                6900,
+                52,
+                "生活好物",
+                "轻量硅胶杯身 / 可折叠收纳 / 适合短途出行",
+                {"容量": "350mL", "材质": "食品接触级硅胶", "颜色": ["海盐蓝", "浅粉"]},
+            ),
+            (
+                "P1013",
+                "保温便当盒",
+                13900,
+                27,
+                "生活好物",
+                "分格内胆 / 密封防漏 / 适合带饭与办公室用餐",
+                {"容量": "900mL", "材质": "304 不锈钢内胆", "配件": "含餐具"},
+            ),
+            (
+                "P1014",
+                "轻便通勤双肩包",
+                22900,
+                18,
+                "出行好物",
+                "轻量防泼水面料 / 独立电脑仓 / 适合日常通勤",
+                {"容量": "18L", "电脑仓": "适用 15.6 英寸", "颜色": ["黑色", "浅灰"]},
+            ),
+            (
+                "P1015",
+                "折叠晴雨伞",
+                7900,
+                44,
+                "出行好物",
+                "六骨轻量结构 / 手动开合 / 日常遮阳挡雨",
+                {"骨架": "六骨", "收纳": "三折", "颜色": ["藏青", "米白"]},
             ),
         ]
         for item in products:
@@ -151,6 +266,65 @@ def products(query=""):
     return items
 
 
+def recommend_products(query="", max_price_yuan=None, category="", limit=3):
+    """按预算、品类和用途推荐有库存商品；未命中筛选条件时不扩大范围。"""
+    items = products()
+    if max_price_yuan is not None:
+        if max_price_yuan <= 0:
+            raise ValueError("预算必须大于 0 元")
+        max_price = int(max_price_yuan * 100)
+        items = [item for item in items if item["price"] <= max_price]
+
+    category = category.strip().lower()
+    if category:
+        items = [item for item in items if category in item["category"].lower()]
+
+    aliases = {
+        "P1001": ("耳机", "降噪", "通勤", "音乐", "数码", "音频", "会议"),
+        "P1002": ("杯", "水杯", "保温", "喝水", "咖啡", "生活"),
+        "P1003": ("灯", "台灯", "阅读", "办公", "办公桌", "书桌", "桌面", "照明"),
+        "P1004": ("键盘", "办公", "桌面", "学习", "打字"),
+        "P1005": ("鼠标", "办公", "桌面", "静音", "学习"),
+        "P1006": ("支架", "笔记本", "电脑", "办公", "桌面", "坐姿"),
+        "P1007": ("收纳", "桌面", "办公", "整理"),
+        "P1008": ("音箱", "音响", "桌面", "音乐", "办公", "蓝牙"),
+        "P1009": ("耳机", "运动", "散步", "跑步", "音乐", "通勤"),
+        "P1010": ("充电宝", "移动电源", "手机", "充电", "通勤", "出行"),
+        "P1011": ("充电器", "快充", "手机", "电脑", "办公", "旅行"),
+        "P1012": ("杯", "水杯", "折叠", "出行", "旅行", "硅胶"),
+        "P1013": ("便当", "饭盒", "带饭", "午餐", "保温", "生活"),
+        "P1014": ("背包", "双肩包", "通勤", "电脑", "出行", "旅行"),
+        "P1015": ("雨伞", "晴雨伞", "折叠", "出行", "通勤", "遮阳"),
+    }
+    query = query.strip().lower()
+    query_terms = [
+        term
+        for term in {value for values in aliases.values() for value in values}
+        if term in query
+    ]
+    scored = []
+    for item in items:
+        if item["stock"] <= 0:
+            continue
+        searchable = " ".join(
+            [
+                item["name"],
+                item["category"],
+                item["description"],
+                *[str(value) for pair in item["specs"].items() for value in pair],
+            ]
+        ).lower()
+        score = sum(term in searchable for term in query_terms)
+        # 没有具体用途或关键词时，返回库存充足的候选商品供模型比较。
+        scored.append((score, item["stock"], item))
+
+    if query_terms:
+        matched = [entry for entry in scored if entry[0] > 0]
+        scored = matched
+    scored.sort(key=lambda entry: (-entry[0], -entry[1], entry[2]["price"]))
+    return [entry[2] for entry in scored[: max(1, min(int(limit), 5))]]
+
+
 def orders(customer_id, order_id=None):
     with connect() as db:
         sql = "SELECT o.*, p.name AS product_name FROM orders o JOIN products p ON p.id=o.product_id WHERE customer_id=?"
@@ -181,9 +355,10 @@ def conversation(visitor_id, customer_id, conversation_id):
             )
         ]
         for item in result["messages"]:
-            item["sources"], item["trace"] = (
+            item["sources"], item["trace"], item["recommendations"] = (
                 json.loads(item["sources"]),
                 json.loads(item["trace"]),
+                json.loads(item["recommendations"]),
             )
         return result
 
@@ -221,10 +396,10 @@ def begin_turn(visitor_id, customer_id, conversation_id, question):
         )
 
 
-def finish_turn(conversation_id, answer, sources, trace):
+def finish_turn(conversation_id, answer, sources, trace, recommendations=None):
     with connect() as db:
         db.execute(
-            "INSERT INTO messages VALUES (?,?,?,?,?,?,?)",
+            "INSERT INTO messages(id,conversation_id,role,content,sources,trace,created_at,recommendations) VALUES (?,?,?,?,?,?,?,?)",
             (
                 uuid.uuid4().hex,
                 conversation_id,
@@ -233,6 +408,7 @@ def finish_turn(conversation_id, answer, sources, trace):
                 json.dumps(sources, ensure_ascii=False),
                 json.dumps(trace, ensure_ascii=False),
                 now(),
+                json.dumps(recommendations or [], ensure_ascii=False),
             ),
         )
         db.execute(

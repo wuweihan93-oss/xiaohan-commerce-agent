@@ -124,7 +124,7 @@ class ApplyReleaseTests(unittest.TestCase):
         self.deploy = self.root / "app"
         (self.deploy / "runtime" / "data").mkdir(parents=True)
         (self.deploy / "knowledge").mkdir()
-        (self.deploy / ".env").write_text("DEMO_MODE=true\n")
+        (self.deploy / ".env").write_text("CHAT_MODEL=integration-test\n")
         self.log = self.root / "docker.log"
         docker = self.bin / "docker"
         docker.write_text("""#!/bin/sh

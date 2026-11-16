@@ -63,12 +63,16 @@ const quickQuestions = computed(() =>
         "SG20260003 什么时候发货？",
         "阅读灯需要充电吗？",
         "为 SG20260003 申请取消订单，原因是不需要了",
+        "推荐一款适合办公桌阅读的灯，预算200元以内",
+        "推荐一款通勤用的降噪耳机，预算500元以内",
       ]
     : [
         "降噪耳机多少钱？还有库存吗？",
         "查一下 SG20260002 的物流",
         "你们支持七天无理由退货吗？",
         "为 SG20260001 申请退货，原因是不合适",
+        "推荐一款适合办公桌阅读的灯，预算200元以内",
+        "推荐一款通勤用的降噪耳机，预算500元以内",
       ],
 );
 const icons = [Headphones, Coffee, LampDesk];
@@ -77,6 +81,8 @@ const quickLabels = [
   "查询订单物流",
   "退换货规则",
   "申请售后",
+  "按预算推荐桌灯",
+  "按用途推荐耳机",
 ];
 const money = (value) => `¥${(value / 100).toFixed(2)}`;
 const actionStatus = (value) =>
@@ -190,6 +196,7 @@ async function ask(text = question.value) {
     content: "",
     sources: [],
     trace: [],
+    recommendations: [],
     streaming: true,
   };
   messages.value.push(reply);
@@ -216,17 +223,20 @@ async function ask(text = question.value) {
       if (event === "state") {
         item.sources = data.sources;
         item.trace = data.trace;
+        item.recommendations = data.recommendations || [];
       }
       if (event === "done") {
         item.content = data.answer;
         item.sources = data.sources;
         item.trace = data.trace;
+        item.recommendations = data.recommendations || [];
         terminal = true;
       }
       if (event === "error") {
         item.content = data.answer;
         item.sources = data.sources;
         item.trace = data.trace;
+        item.recommendations = data.recommendations || [];
         error.value = data.detail;
         terminal = true;
       }
@@ -367,7 +377,7 @@ onBeforeUnmount(() => controller?.abort());
           <div>
             <h1>小拾客服</h1>
             <span class="online-status"
-              ><i></i>{{ health?.demo_mode ? "规则演示" : "在线" }}</span
+              ><i></i>{{ health?.model_configured ? "在线" : "未配置模型" }}</span
             >
           </div>
         </div>
@@ -397,7 +407,7 @@ onBeforeUnmount(() => controller?.abort());
                   @click="ask(text)"
                 >
                   <component
-                    :is="[ShoppingBag, Truck, BookOpen, Package][index]"
+                    :is="[ShoppingBag, Truck, BookOpen, Package, Sparkles, Sparkles][index]"
                     :size="20"
                   /><span>{{ quickLabels[index] }}</span
                   ><ArrowRight :size="15" />
@@ -433,6 +443,42 @@ onBeforeUnmount(() => controller?.abort());
                     ><LoaderCircle :size="14" class="spin" />正在查询…</span
                   >
                 </div>
+                <div
+                  v-if="message.recommendations?.length"
+                  class="recommendation-list"
+                  aria-label="商品推荐"
+                >
+                  <article
+                    v-for="product in message.recommendations"
+                    :key="product.id"
+                    class="recommendation-item"
+                  >
+                    <div class="recommendation-heading">
+                      <div>
+                        <small>{{ product.category }}</small>
+                        <h3>{{ product.name }}</h3>
+                      </div>
+                      <strong>{{ money(product.price) }}</strong>
+                    </div>
+                    <p>{{ product.description }}</p>
+                    <div class="recommendation-meta">
+                      <span>库存 {{ product.stock }} 件</span>
+                      <span
+                        v-for="([name, value], index) in Object.entries(product.specs).slice(0, 2)"
+                        :key="name"
+                      >
+                        {{ name }} {{ Array.isArray(value) ? value.join(" / ") : value }}
+                      </span>
+                    </div>
+                    <button
+                      class="recommendation-action"
+                      :disabled="busy"
+                      @click="ask(`再介绍一下${product.name}，重点说适用场景和规格。`)"
+                    >
+                      继续了解 <ArrowRight :size="14" />
+                    </button>
+                  </article>
+                </div>
                 <details v-if="message.sources?.length" class="citations">
                   <summary><BookOpen :size="12" />查看依据</summary>
                   <div v-for="(source, index) in message.sources" :key="index">
@@ -467,9 +513,7 @@ onBeforeUnmount(() => controller?.abort());
                 @keydown.enter.exact.prevent="ask()"
               ></textarea>
               <div class="composer-bottom">
-                <span>{{
-                  health?.demo_mode ? "规则演示模式" : "Shift + Enter 换行"
-                }}</span><button
+                <span>Shift + Enter 换行</span><button
                   v-if="loading"
                   class="send-button"
                   type="button"
@@ -642,11 +686,7 @@ onBeforeUnmount(() => controller?.abort());
               </summary>
               <div class="details-content">
                 <p>
-                  {{
-                    health?.demo_mode
-                      ? "当前为规则演示，不具备大模型语义理解能力。"
-                      : `模型：${health?.model || "未连接"}。问题和检索结果会发送给配置的模型服务。`
-                  }}
+                  模型：{{ health?.model || "未连接" }}。问题和检索结果会发送给配置的模型服务。
                 </p>
                 <p>
                   店铺知识库：{{ health?.knowledge?.files?.length || 0 }} 份文档
