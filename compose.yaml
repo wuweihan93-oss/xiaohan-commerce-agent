@@ -1,0 +1,41 @@
+name: xiaohan-commerce
+
+services:
+  backend:
+    image: xiaohan-commerce-backend:1.0
+    build:
+      context: .
+      dockerfile: deploy/backend.Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      COMMERCE_DATA_DIR: /app/backend/data
+      COMMERCE_KNOWLEDGE_DIR: /app/knowledge
+      COMMERCE_INTERNAL_URL: http://127.0.0.1:8020
+    volumes:
+      - ./runtime/data:/app/backend/data
+      - ./knowledge:/app/knowledge:ro
+    expose: ["8020"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "from urllib.request import urlopen; urlopen('http://127.0.0.1:8020/api/health',timeout=5)",
+        ]
+      interval: 20s
+      timeout: 8s
+      start_period: 60s
+      retries: 4
+  frontend:
+    image: xiaohan-commerce-frontend:1.0
+    build:
+      context: .
+      dockerfile: deploy/frontend.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${COMMERCE_BIND_HOST:-0.0.0.0}:${COMMERCE_HTTP_PORT:-8891}:80"
