@@ -39,8 +39,8 @@ remote_directory=$(ssh "${options[@]}" -p "$SSH_PORT" "$target" "mktemp -d /tmp/
 
 printf '正在传输部署清单，大小：%s 字节\n' "$(wc -c < "$archive")"
 scp "${options[@]}" -P "$SSH_PORT" "$archive" "$archive.sha256" "$target:$remote_directory/"
-printf -v remote_command 'cd %q && sha256sum -c %q && tar -xzf %q && test "$(cat REVISION)" = %q && bash ./apply-release.sh %q %q' \
-  "$remote_directory" "$(basename "$archive.sha256")" "$(basename "$archive")" "$REVISION" "$DEPLOY_PATH" "$remote_directory"
+printf -v remote_command 'cd %q && sha256sum -c %q && tar -xzf %q && test "$(cat REVISION)" = %q && bash ./apply-release.sh %q %q %q' \
+  "$remote_directory" "$(basename "$archive.sha256")" "$(basename "$archive")" "$REVISION" "$REVISION" "$DEPLOY_PATH" "$remote_directory"
 ssh "${options[@]}" -p "$SSH_PORT" "$target" "$remote_command"
 
 printf -v cleanup_command 'rm -rf -- %q' "$remote_directory"

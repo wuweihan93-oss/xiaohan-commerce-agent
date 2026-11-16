@@ -87,7 +87,12 @@ printf 'scp %s\\n' "$*" >> "$CALL_LOG"
         calls = self.log.read_text()
         self.assertIn("StrictHostKeyChecking=yes", calls)
         self.assertIn("scp ", calls)
-        self.assertIn("apply-release.sh", calls)
+        self.assertIn(
+            f"bash ./apply-release.sh {REVISION} "
+            f"/home/ubuntu/apps/xiaohan-commerce-agent "
+            f"/tmp/commerce-release.{REVISION}.ABC123",
+            calls,
+        )
         self.assertEqual(list(self.tmp.iterdir()), [])
 
     def test_missing_key_fails_before_network_calls(self):
