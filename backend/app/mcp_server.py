@@ -30,7 +30,7 @@ async def recommend_products(
     category: str = "",
     limit: int = 3,
 ) -> str:
-    """按用途、预算和品类推荐有库存商品，返回商品卡片所需的实时字段。"""
+    """按用途、预算和品类推荐有库存商品。品类可用具体商品类型或店铺大类，返回卡片实时字段。"""
     return output(
         {
             "recommendations": store.recommend_products(

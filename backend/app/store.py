@@ -277,7 +277,23 @@ def recommend_products(query="", max_price_yuan=None, category="", limit=3):
 
     category = category.strip().lower()
     if category:
-        items = [item for item in items if category in item["category"].lower()]
+        items = [
+            item
+            for item in items
+            if category
+            in " ".join(
+                [
+                    item["category"],
+                    item["name"],
+                    item["description"],
+                    *[
+                        str(value)
+                        for pair in item["specs"].items()
+                        for value in pair
+                    ],
+                ]
+            ).lower()
+        ]
 
     aliases = {
         "P1001": ("耳机", "降噪", "通勤", "音乐", "数码", "音频", "会议"),

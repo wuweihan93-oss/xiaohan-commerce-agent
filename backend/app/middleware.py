@@ -9,33 +9,6 @@ from langgraph.graph.message import REMOVE_ALL_MESSAGES
 
 logger = logging.getLogger(__name__)
 
-RECOMMENDATION_INTENTS = ("推荐", "预算", "适合", "用途", "怎么选", "哪个好", "对比")
-
-
-def recommendation_is_pending(messages: list[BaseMessage]) -> bool:
-    """导购问题必须先经过推荐工具，避免模型只生成文字而漏掉商品卡片数据。"""
-    last_user = next(
-        (
-            index
-            for index in range(len(messages) - 1, -1, -1)
-            if getattr(messages[index], "type", None) == "human"
-        ),
-        -1,
-    )
-    if last_user < 0:
-        return False
-
-    question = str(messages[last_user].content)
-    if not any(intent in question for intent in RECOMMENDATION_INTENTS):
-        return False
-
-    return not any(
-        isinstance(message, ToolMessage)
-        and message.name == "recommend_products"
-        for message in messages[last_user + 1 :]
-    )
-
-
 def repair_tool_messages(messages: list[BaseMessage]) -> list[BaseMessage]:
     """保留问答和成功的工具结果；为中断调用补错误结果，并移除游离或重复返回。"""
     repaired = []
@@ -72,23 +45,6 @@ def repair_tool_messages(messages: list[BaseMessage]) -> list[BaseMessage]:
 
 
 class ToolRecoveryMiddleware(AgentMiddleware):
-    async def awrap_model_call(self, request, handler):
-        """导购问题锁定推荐工具，让商品结果和卡片字段保持一致。"""
-        tools = request.tools or []
-        has_recommendation_tool = any(
-            getattr(tool, "name", None) == "recommend_products"
-            or (isinstance(tool, dict) and tool.get("name") == "recommend_products")
-            for tool in tools
-        )
-        if has_recommendation_tool and recommendation_is_pending(request.messages):
-            request = request.override(
-                tool_choice={
-                    "type": "function",
-                    "function": {"name": "recommend_products"},
-                }
-            )
-        return await handler(request)
-
     async def abefore_model(self, state, runtime) -> dict[str, Any] | None:
         messages = state["messages"]
         repaired = repair_tool_messages(messages)
