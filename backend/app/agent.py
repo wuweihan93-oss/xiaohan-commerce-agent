@@ -6,7 +6,13 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from langchain.agents import create_agent
-from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    AIMessageChunk,
+    BaseMessage,
+    HumanMessage,
+    ToolMessage,
+)
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 from app import config
@@ -57,37 +63,49 @@ def visible_text(message: AIMessage | AIMessageChunk) -> str:
     )
 
 
-def current_state(messages: list[Any]) -> dict[str, Any]:
-    start = next(
-        (
-            i
-            for i in range(len(messages) - 1, -1, -1)
-            if isinstance(messages[i], HumanMessage)
-        ),
-        -1,
-    )
-    sources, trace, recommendations = [], [], []
-    for message in messages[start + 1 :]:
+def get_current_turn_messages(messages: list[BaseMessage]) -> list[BaseMessage]:
+    """取最近一条用户消息之后的消息，避免上一轮引用和商品混入本轮。"""
+    for index in range(len(messages) - 1, -1, -1):
+        if isinstance(messages[index], HumanMessage):
+            return messages[index + 1 :]
+    return messages
+
+
+def collect_display_data(turn_messages: list[BaseMessage]) -> dict[str, Any]:
+    """将本轮消息整理为页面展示数据；不修改 LangGraph 的图状态。"""
+    sources = []
+    trace = []
+    recommendations = []
+
+    for message in turn_messages:
         if isinstance(message, AIMessage):
-            trace.extend(
-                {"tool": call["name"], "status": "running", "label": "Agent 调用工具"}
-                for call in message.tool_calls
-            )
-        if isinstance(message, ToolMessage):
-            payload = parse_tool_result(message)
-            failed = message.status == "error" or bool(payload.get("error"))
-            trace.append(
-                {
-                    "tool": message.name,
-                    "status": "error" if failed else "success",
-                    "label": "工具失败" if failed else "MCP 返回结果",
-                }
-            )
-            for source in payload.get("sources", []):
-                if source not in sources:
-                    sources.append(source)
-            if message.name == "recommend_products":
-                recommendations = payload.get("recommendations", [])
+            for call in message.tool_calls:
+                trace.append(
+                    {"tool": call["name"], "status": "running", "label": "Agent 调用工具"}
+                )
+            continue
+
+        if not isinstance(message, ToolMessage):
+            continue
+
+        payload = parse_tool_result(message)
+        failed = message.status == "error" or bool(payload.get("error"))
+        trace.append(
+            {
+                "tool": message.name,
+                "status": "error" if failed else "success",
+                "label": "工具失败" if failed else "MCP 返回结果",
+            }
+        )
+
+        # 同一份知识片段可能被多次检索，页面只展示一次。
+        for source in payload.get("sources", []):
+            if source not in sources:
+                sources.append(source)
+
+        # 重复推荐时展示最后一次结果，空结果也会清除之前的商品卡片。
+        if message.name == "recommend_products":
+            recommendations = payload.get("recommendations", [])
     return {
         "sources": sources,
         "trace": trace,
@@ -117,10 +135,10 @@ async def stream(
             middleware=[ToolRecoveryMiddleware()],
             checkpointer=checkpointer,
         )
-        messages: list[Any] = []
+        messages: list[BaseMessage] = []
         draft = ""
         message_id = None
-        previous = None
+        previous_display_data = None
         # messages 流负责逐字输出；values 流负责整理本轮完整的工具轨迹与引用。
         agent_config = {
             "configurable": {
@@ -151,11 +169,14 @@ async def stream(
                     draft += text
                     yield {"event": "token", "data": {"text": text}}
             else:
-                messages = data.get("messages", [])
-                state = current_state(messages)
-                if state != previous:
-                    yield {"event": "state", "data": state}
-                    previous = state
+                graph_state = data
+                messages = graph_state.get("messages", [])
+                turn_messages = get_current_turn_messages(messages)
+                display_data = collect_display_data(turn_messages)
+                if display_data != previous_display_data:
+                    # state 是已有的 SSE 事件名，事件内容是页面数据，不是完整图状态。
+                    yield {"event": "state", "data": display_data}
+                    previous_display_data = display_data
                 if (
                     messages
                     and isinstance(messages[-1], AIMessage)
@@ -175,7 +196,9 @@ async def stream(
         )
         if final is None:
             raise RuntimeError("Agent 未生成最终回答")
+        turn_messages = get_current_turn_messages(messages)
+        display_data = collect_display_data(turn_messages)
         yield {
             "event": "result",
-            "data": {"answer": visible_text(final), **current_state(messages)},
+            "data": {"answer": visible_text(final), **display_data},
         }

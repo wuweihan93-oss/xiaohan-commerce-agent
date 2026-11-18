@@ -2,7 +2,7 @@
 
 import unittest
 
-from app.middleware import ToolRecoveryMiddleware, repair_tool_messages
+from app.middleware import repair_tool_messages
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 
